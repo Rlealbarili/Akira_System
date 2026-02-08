@@ -1,9 +1,9 @@
+/* Import Orbitron and Inter from Google Fonts via CSS (for simplicity) */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Inter:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import Orbitron and Inter from Google Fonts via CSS (for simplicity) */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Inter:wght@100..900&display=swap');
 
 :root {
   --foreground-rgb: 224, 224, 224;
@@ -17,7 +17,103 @@ body {
   font-family: 'Inter', sans-serif;
 }
 
-h1, h2, h3, h4, h5, h6, .font-tech {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-tech {
   font-family: 'Orbitron', sans-serif;
   letter-spacing: 0.05em;
+}
+
+/* --- CYBERPUNK UTILITIES --- */
+
+/* Neon Glow */
+.neon-border {
+  box-shadow: 0 0 5px theme('colors.red.500'), 0 0 10px theme('colors.red.500');
+  border-color: theme('colors.red.500');
+}
+
+.neon-text {
+  text-shadow: 0 0 5px theme('colors.red.500'), 0 0 10px theme('colors.red.500');
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Scanline Effect */
+.scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanline::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Glitch Animation */
+@keyframes glitch-skew {
+  0% {
+    transform: skew(0deg);
+  }
+
+  20% {
+    transform: skew(-2deg);
+  }
+
+  40% {
+    transform: skew(2deg);
+  }
+
+  60% {
+    transform: skew(-1deg);
+  }
+
+  80% {
+    transform: skew(1deg);
+  }
+
+  100% {
+    transform: skew(0deg);
+  }
+}
+
+.glitch-hover:hover {
+  animation: glitch-skew 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+  color: theme('colors.red.500');
+}
+
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.red.600');
 }

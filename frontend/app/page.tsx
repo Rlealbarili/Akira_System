@@ -1,13 +1,22 @@
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
+import { client } from '@/lib/shopify';
+import Image from 'next/image';
+import Link from 'next/link';
 
-export default function Home() {
+// Force dynamic rendering to ensure fresh data
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  // Fetch products from Shopify
+  const products = await client.product.fetchAll();
+
   return (
     <main className="min-h-screen flex flex-col">
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative flex-grow flex items-center justify-center pt-16 overflow-hidden">
+      <section className="relative flex-grow flex items-center justify-center pt-16 overflow-hidden min-h-[80vh]">
         {/* Background Grid */}
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-0"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black z-10"></div>
@@ -27,9 +36,9 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
-            <button className="px-8 py-4 bg-white text-black font-bold font-tech tracking-wider hover:bg-gray-200 transition-colors w-full sm:w-auto skew-x-[-10deg]">
+            <Link href="/catalog" className="px-8 py-4 bg-white text-black font-bold font-tech tracking-wider hover:bg-gray-200 transition-colors w-full sm:w-auto skew-x-[-10deg]">
               <span className="block skew-x-[10deg]">ACCESS CATALOG</span>
-            </button>
+            </Link>
             <button className="px-8 py-4 border border-white/20 text-white font-bold font-tech tracking-wider hover:bg-white/10 transition-colors w-full sm:w-auto skew-x-[-10deg]">
               <span className="block skew-x-[10deg]">VIEW SPECS</span>
             </button>
@@ -37,21 +46,51 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Section Placeholder */}
+      {/* Featured Section */}
       <section className="py-24 bg-black border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl font-tech text-white mb-12 flex items-center gap-4">
             <span className="w-2 h-8 bg-red-600 block"></span>
             FEATURED DEPLOYMENTS
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="aspect-[3/4] bg-white/5 border border-white/10 flex items-center justify-center group hover:border-red-500/50 transition-colors cursor-pointer">
-                <span className="font-mono text-gray-600 group-hover:text-red-500">
-                  [NO SIGNAL // INDEX {i}]
-                </span>
-              </div>
+            {products.slice(0, 3).map((product: any) => (
+              <Link href={`/product/${product.handle}`} key={product.id} className="group block">
+                <div className="aspect-[3/4] bg-white/5 border border-white/10 relative overflow-hidden transition-all duration-300 group-hover:border-red-500/50">
+                  {product.images[0] && (
+                    <Image
+                      src={product.images[0].src}
+                      alt={product.images[0].altText || product.title}
+                      fill
+                      className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                    />
+                  )}
+
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                    <span className="text-red-500 font-mono text-xs mb-2">
+                      ID: {product.id.substring(product.id.lastIndexOf('/') + 1)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-1">
+                  <h3 className="text-lg font-bold text-white font-tech group-hover:text-red-500 transition-colors truncate">
+                    {product.title}
+                  </h3>
+                  <p className="text-gray-400 font-mono text-sm">
+                    {product.variants[0]?.price.amount} {product.variants[0]?.price.currencyCode}
+                  </p>
+                </div>
+              </Link>
             ))}
+
+            {products.length === 0 && (
+              <div className="col-span-3 text-center text-gray-500 font-mono py-12 border border-dashed border-white/10">
+                ⚠️ NO SIGNAL DETECTED FROM INVENTORY SYSTEM
+              </div>
+            )}
           </div>
         </div>
       </section>
