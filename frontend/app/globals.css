@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Orbitron and Inter from Google Fonts via CSS (for simplicity) */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Inter:wght@100..900&display=swap');
+
+:root {
+  --foreground-rgb: 224, 224, 224;
+  --background-start-rgb: 5, 5, 5;
+  --background-end-rgb: 5, 5, 5;
+}
+
+body {
+  background-color: #050505;
+  color: #e0e0e0;
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .font-tech {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.05em;
+}
