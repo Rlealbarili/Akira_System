@@ -29,7 +29,7 @@ export default function Navbar() {
                     <div className="hidden md:block">
                         <div className="ml-10 flex items-baseline space-x-12">
                             <NavLink href="/">ORIGIN</NavLink>
-                            <NavLink href="/catalog">ARMORY</NavLink>
+                            <NavLink href="/catalog">CATALOG</NavLink>
                             <NavLink href="/logistics">LOGISTICS</NavLink>
                         </div>
                     </div>
@@ -68,7 +68,7 @@ export default function Navbar() {
                     >
                         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
                             <MobileNavLink href="/">ORIGIN</MobileNavLink>
-                            <MobileNavLink href="/catalog">ARMORY</MobileNavLink>
+                            <MobileNavLink href="/catalog">CATALOG</MobileNavLink>
                             <MobileNavLink href="/logistics">LOGISTICS</MobileNavLink>
                         </div>
                     </motion.div>

@@ -7,9 +7,25 @@ import Link from 'next/link';
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic';
 
+type ProductCard = {
+  id: string;
+  handle: string;
+  title: string;
+  images: Array<{
+    src: string;
+    altText?: string | null;
+  }>;
+  variants: Array<{
+    price: {
+      amount: string;
+      currencyCode: string;
+    };
+  }>;
+};
+
 export default async function Home() {
   // Fetch products from Shopify
-  const products = await client.product.fetchAll();
+  const products = (await client.product.fetchAll()) as ProductCard[];
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -27,12 +43,12 @@ export default async function Home() {
           </div>
 
           <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-white font-tech leading-tight">
-            ADVANCED <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-600">TACTICAL</span> <br />
-            SOLUTIONS
+            PREMIUM <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-600">SETUP</span> <br />
+            HARDWARE
           </h1>
 
           <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto font-light tracking-wide">
-            Engineered for the urban operator. Precision-crafted apparel and equipment for the modern concrete jungle.
+            Curated keycaps, mechanical keyboards, and accessories for enthusiasts who take their setup seriously.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
@@ -55,7 +71,7 @@ export default async function Home() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {products.slice(0, 3).map((product: any) => (
+            {products.slice(0, 3).map((product) => (
               <Link href={`/product/${product.handle}`} key={product.id} className="group block">
                 <div className="aspect-[3/4] bg-white/5 border border-white/10 relative overflow-hidden transition-all duration-300 group-hover:border-red-500/50">
                   {product.images[0] && (

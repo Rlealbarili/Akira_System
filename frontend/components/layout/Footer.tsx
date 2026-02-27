@@ -7,7 +7,7 @@ export default function Footer() {
                     {/* Brand */}
                     <div className="space-y-4">
                         <h3 className="text-white font-tech tracking-widest">AKIRA SYSTEMS INC.</h3>
-                        <p>Advanced tactical solutions for the modern urban environment.</p>
+                        <p>Premium keycaps and setup peripherals for enthusiasts.</p>
                         <div className="flex items-center gap-2 text-xs font-mono text-green-500">
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                             SYSTEM STATUS: ONLINE
@@ -27,7 +27,7 @@ export default function Footer() {
                     {/* Newsletter */}
                     <div className="space-y-4">
                         <h3 className="text-white font-tech tracking-widest">DATA LINK</h3>
-                        <p>Subscribe for equipment drops and system updates.</p>
+                        <p>Subscribe for product drops and system updates.</p>
                         <div className="flex">
                             <input
                                 type="email"

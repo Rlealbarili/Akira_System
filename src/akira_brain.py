@@ -1,7 +1,7 @@
 
 import os
 import requests
-import json
+import time
 from dotenv import load_dotenv
 
 # Carregar Env (caso seja importado isoladamente)
@@ -9,8 +9,34 @@ load_dotenv('config/.env')
 
 class AkiraBrain:
     def __init__(self):
-        self.url = f"{os.getenv('OLLAMA_URL', 'http://localhost:11434')}/api/chat"
+        self.base_url = os.getenv('OLLAMA_URL', 'http://localhost:11434').rstrip('/')
+        self.url = f"{self.base_url}/api/chat"
         self.model = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b-instruct')
+        self.retries = int(os.getenv('OLLAMA_RETRIES', '2'))
+        self.backoff = float(os.getenv('OLLAMA_BACKOFF_BASE', '1.6'))
+
+    def _chat(self, payload, timeout):
+        last_error = None
+        for attempt in range(1, self.retries + 1):
+            try:
+                response = requests.post(self.url, json=payload, timeout=timeout)
+                response.raise_for_status()
+                data = response.json()
+
+                if 'message' in data and 'content' in data['message']:
+                    return data['message']['content'].strip()
+                return None
+            except requests.exceptions.Timeout as e:
+                last_error = e
+                print(f"⚠️  AKIRA BRAIN: Timeout na tentativa {attempt}/{self.retries}.")
+            except Exception as e:
+                last_error = e
+                print(f"⚠️  AKIRA BRAIN ERROR (tentativa {attempt}/{self.retries}): {e}")
+
+            if attempt < self.retries:
+                time.sleep(self.backoff ** (attempt - 1))
+
+        return None, last_error
 
     def gerar_insight(self, produto, old_price, new_price):
         """
@@ -32,22 +58,11 @@ class AkiraBrain:
             "stream": False
         }
 
-        try:
-            # Timeout de 5s para não travar o sistema principal
-            response = requests.post(self.url, json=payload, timeout=5)
-            response.raise_for_status()
-            
-            data = response.json()
-            if 'message' in data and 'content' in data['message']:
-                return data['message']['content'].strip()
+        # Timeout curto para nao travar repricing
+        result = self._chat(payload, timeout=5)
+        if isinstance(result, tuple):
             return None
-            
-        except requests.exceptions.Timeout:
-            print("⚠️  AKIRA BRAIN: Timeout (IA Ocupada).")
-            return None
-        except Exception as e:
-            print(f"⚠️  AKIRA BRAIN ERROR: {e}")
-            return None
+        return result
 
     def responder_faq(self, pergunta_usuario, dados_produto):
         payload = {
@@ -64,16 +79,16 @@ class AkiraBrain:
             ],
             "stream": False
         }
-        try:
-            response = requests.post(self.url, json=payload, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            if 'message' in data and 'content' in data['message']:
-                return data['message']['content'].strip()
-            return "⚠️ O sistema neural está reiniciando... Tente novamente em breve."
-        except Exception as e:
-            print(f"⚠️  AKIRA FAQ ERROR: {e}")
+
+        result = self._chat(payload, timeout=10)
+        if isinstance(result, tuple):
+            _, err = result
+            if err:
+                print(f"⚠️  AKIRA FAQ ERROR: {err}")
             return "⚠️ Erro de comunicação com o núcleo."
+        if not result:
+            return "⚠️ O sistema neural está reiniciando... Tente novamente em breve."
+        return result
 
 if __name__ == "__main__":
     # Teste rápido de sanidade
