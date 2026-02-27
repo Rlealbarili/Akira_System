@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 import shopify
 from dotenv import load_dotenv
@@ -117,6 +117,51 @@ class SentinelSystem:
             except Exception:
                 return None
         return None
+
+    def _normalize_label(self, value: str) -> str:
+        if value is None:
+            return ""
+        text = str(value).strip().lower()
+        text = re.sub(r"[^a-z0-9]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def _variant_tokens(self, variant) -> Set[str]:
+        tokens = set()
+        raw_values = [
+            getattr(variant, "title", None),
+            getattr(variant, "option1", None),
+            getattr(variant, "option2", None),
+            getattr(variant, "option3", None),
+        ]
+        for raw in raw_values:
+            if not raw:
+                continue
+            normalized = self._normalize_label(str(raw))
+            if normalized:
+                tokens.add(normalized)
+            # Tambem quebra variantes compostas (ex.: "Red / 75 keys")
+            for part in re.split(r"[/|,-]", str(raw)):
+                part_norm = self._normalize_label(part)
+                if part_norm:
+                    tokens.add(part_norm)
+        return tokens
+
+    def _variant_matches_oos(self, variant, oos_norms: List[str]) -> bool:
+        if not oos_norms:
+            return False
+        tokens = self._variant_tokens(variant)
+        if not tokens:
+            return False
+        for token in tokens:
+            if len(token) < 2:
+                continue
+            for oos in oos_norms:
+                if not oos:
+                    continue
+                if token == oos or token in oos or oos in token:
+                    return True
+        return False
 
     def _get_ali_data(self, url: str) -> Tuple[float, float, bool]:
         """
@@ -326,6 +371,228 @@ class SentinelSystem:
 
         return True
 
+    def _detect_variant_ghosts(self, page, product) -> List[str]:
+        """
+        Detecta variantes esgotadas no fornecedor (disabled/greyed out),
+        retornando lista de TITULOS de variantes da Shopify afetadas.
+        """
+        variant_candidates = []
+        blocked_terms = (
+            "add to cart",
+            "buy now",
+            "quantity",
+            "shipping",
+            "ship to",
+            "store",
+            "coupon",
+            "login",
+        )
+
+        selectors = (
+            "button[disabled]",
+            "button[aria-disabled='true']",
+            "li[aria-disabled='true']",
+            "[class*='sku'][class*='disabled']",
+            "[class*='SKU'][class*='disabled']",
+            "[class*='sku-property-item'][class*='disabled']",
+            "[class*='comet-v2-select-item'][aria-disabled='true']",
+        )
+
+        for selector in selectors:
+            try:
+                elements = page.query_selector_all(selector) or []
+            except Exception:
+                continue
+            for element in elements:
+                text = ""
+                try:
+                    text = (element.inner_text() or "").strip()
+                except Exception:
+                    text = ""
+                if not text:
+                    for attr in ("title", "aria-label", "data-sku-title", "data-title"):
+                        try:
+                            text = (element.get_attribute(attr) or "").strip()
+                        except Exception:
+                            text = ""
+                        if text:
+                            break
+                if not text:
+                    continue
+                norm = self._normalize_label(text)
+                if not norm:
+                    continue
+                if any(term in norm for term in blocked_terms):
+                    continue
+                variant_candidates.append(norm)
+
+        if not variant_candidates:
+            self._log("INFO", "SKU GHOST SCAN // no disabled supplier variant found")
+            return []
+
+        variant_candidates = sorted(set(variant_candidates))
+        ghosts = set()
+
+        for variant in getattr(product, "variants", []) or []:
+            variant_name = (getattr(variant, "title", "") or "").strip()
+            if not variant_name:
+                continue
+            tokens = self._variant_tokens(variant)
+            match_found = False
+            for token in tokens:
+                if len(token) < 2:
+                    continue
+                if any(token == c or token in c or c in token for c in variant_candidates):
+                    match_found = True
+                    break
+            if match_found:
+                ghosts.add(variant_name)
+
+        ghost_list = sorted(ghosts)
+        if ghost_list:
+            self._log("WARN", f"SKU GHOST SCAN // variants_oos={ghost_list}")
+        else:
+            self._log("WARN", "SKU GHOST SCAN // disabled options found, but no Shopify variant match")
+        return ghost_list
+
+    def _scan_variant_ghosts(self, ali_url: str, product) -> List[str]:
+        """
+        Abre a pagina do fornecedor e delega deteccao de variante fantasma.
+        Falhas sempre retornam lista vazia para nao quebrar o fluxo principal.
+        """
+        if not ali_url:
+            return []
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=self.headless)
+            context = browser.new_context(
+                locale="en-US",
+                viewport={"width": 1365, "height": 900},
+            )
+            page = context.new_page()
+            page.set_default_timeout(self.playwright_timeout_ms)
+            try:
+                page.goto(ali_url, wait_until="domcontentloaded", timeout=self.playwright_timeout_ms)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=min(10_000, self.playwright_timeout_ms))
+                except PlaywrightTimeoutError:
+                    pass
+                return self._detect_variant_ghosts(page, product)
+            except Exception as e:
+                self._log("WARN", f"SKU GHOST SCAN FAILURE // {e}")
+                return []
+            finally:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
+    def _zero_variant_inventory(self, product, variant_names_oos: List[str]) -> int:
+        """
+        Zera estoque apenas das variantes afetadas e aplica tag de rastreio.
+        Retorna quantidade de variantes atualizadas.
+        """
+        if not variant_names_oos:
+            return 0
+
+        oos_norms = [self._normalize_label(name) for name in variant_names_oos if self._normalize_label(name)]
+        if not oos_norms:
+            return 0
+
+        existing_tags = [t.strip() for t in (product.tags or "").split(",") if t.strip()]
+        tags_changed = False
+        updated = 0
+        product_id = getattr(product, "id", None)
+        product_title = getattr(product, "title", "Unknown")
+
+        for variant in getattr(product, "variants", []) or []:
+            if not self._variant_matches_oos(variant, oos_norms):
+                continue
+
+            variant_name = (getattr(variant, "title", "") or "Unknown Variant").strip()
+            inventory_item_id = getattr(variant, "inventory_item_id", None)
+            if not inventory_item_id:
+                self._log("WARN", f"SKU DEATH // variant '{variant_name}' sem inventory_item_id")
+                continue
+
+            level_zeroed = False
+            try:
+                # Carrega InventoryItem para validar existencia da variante no inventario.
+                shopify.InventoryItem.find(inventory_item_id)
+            except Exception as e:
+                self._log("WARN", f"SKU DEATH // falha ao buscar inventory item ({variant_name}): {e}")
+                continue
+
+            try:
+                levels = shopify.InventoryLevel.find(inventory_item_ids=inventory_item_id)
+            except Exception as e:
+                self._log("WARN", f"SKU DEATH // falha ao buscar inventory levels ({variant_name}): {e}")
+                continue
+
+            if not levels:
+                self._log("WARN", f"SKU DEATH // nenhum inventory level encontrado para '{variant_name}'")
+                continue
+
+            for level in levels:
+                location_id = getattr(level, "location_id", None)
+                if location_id is None:
+                    continue
+                try:
+                    shopify.InventoryLevel.set(location_id, inventory_item_id, 0)
+                    level_zeroed = True
+                except Exception:
+                    try:
+                        shopify.InventoryLevel.set(
+                            location_id=location_id,
+                            inventory_item_id=inventory_item_id,
+                            available=0,
+                        )
+                        level_zeroed = True
+                    except Exception as e:
+                        self._log(
+                            "WARN",
+                            f"SKU DEATH // falha ao zerar level (variant='{variant_name}', location={location_id}): {e}",
+                        )
+
+            if not level_zeroed:
+                continue
+
+            updated += 1
+            track_tag = f"SENTINELA_VARIANT_OOS: {variant_name}"
+            if track_tag not in existing_tags:
+                existing_tags.append(track_tag)
+                tags_changed = True
+
+            self._log("WARN", f"SKU DEATH CONFIRMED // variant='{variant_name}' inventory set to 0")
+
+            try:
+                msg = (
+                    f"**SENTINELA: VARIANTE ESGOTADA**\n"
+                    f"Produto: {product_title}\n"
+                    f"ID: {product_id}\n"
+                    f"Variante: {variant_name}\n"
+                    f"Motivo: VARIANTE_ESGOTADA_NO_FORNECEDOR"
+                )
+                enviar_telegram(msg)
+            except Exception as e:
+                self._log("WARN", f"Falha ao enviar Telegram (variant oos): {e}")
+
+        if tags_changed:
+            try:
+                product.tags = ", ".join(existing_tags)
+                if not product.save():
+                    self._log("WARN", "SKU DEATH // falha ao salvar tags de variante OOS no produto")
+                else:
+                    self._log("OK", "SKU DEATH // product tracking tags updated")
+            except Exception as e:
+                self._log("WARN", f"SKU DEATH // falha ao persistir tags no produto: {e}")
+
+        return updated
+
     def auditar_produto(self, shopify_product_id: int, ali_url: str) -> bool:
         """
         Orquestra a auditoria:
@@ -369,6 +636,15 @@ class SentinelSystem:
         if not in_stock:
             reason = "ESTOQUE_ZERADO_NO_FORNECEDOR"
             return bool(self._kill_switch(product, reason))
+
+        # Produto segue ativo: detectar variante fantasma (SKU Death)
+        try:
+            ghost_variants = self._scan_variant_ghosts(ali_url, product)
+            if ghost_variants:
+                self._zero_variant_inventory(product, ghost_variants)
+        except Exception as e:
+            # Nunca quebrar auditoria principal por falha de variante fantasma.
+            self._log("WARN", f"SKU DEATH PIPELINE FAILURE // {e}")
 
         # Aprovado: atualizar custo das variantes
         updated_any = False

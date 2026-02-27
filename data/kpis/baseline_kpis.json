@@ -1,0 +1,35 @@
+{
+  "financeiro": {
+    "faturamento_bruto_total": 0.0,
+    "ticket_medio": 0.0,
+    "margem_media_real_por_pedido": 0.0,
+    "margem_por_sku": {},
+    "custo_medio_por_pedido": 0.0
+  },
+  "operacional": {
+    "total_pedidos": 0,
+    "pedidos_com_rastreio_em_72h": 0.0,
+    "taxa_reembolso": 0.0,
+    "taxa_chargeback": 0.0,
+    "tempo_medio_despacho_horas": 0.0
+  },
+  "loja": {
+    "taxa_conversao": 0.0,
+    "skus_ativos_total": 0,
+    "skus_com_custo_cadastrado": 0,
+    "skus_sem_custo_cadastrado": 0,
+    "sessoes_totais": 0
+  },
+  "meta": {
+    "ticket_medio_alvo": 450.0,
+    "margem_media_alvo": 0.35,
+    "taxa_conversao_alvo": 0.02,
+    "rastreio_72h_alvo": 0.9
+  },
+  "metadados": {
+    "baseline_criado_em": "2026-02-27T14:43:24-03:00",
+    "ultima_atualizacao": null,
+    "fase_atual": "fase_1_fundacao",
+    "status": "aguardando_primeiros_pedidos"
+  }
+}
