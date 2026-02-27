@@ -4,3 +4,4 @@ ShopifyAPI
 pandas
 colorama
 schedule
+playwright
